@@ -1,0 +1,13 @@
+{
+  "appName": "AttachSurfer",
+  "version": "1.0.0",
+  "defaultEngine": "all",
+  "resultCount": 3,
+  "webllmModel": "Phi-4-mini-instruct-q4f16_1-MLC",
+  "storeHistory": true,
+  "telemetryEnabled": true,
+  "hardwareThresholds": {
+    "minMemoryGB": 8,
+    "minCores": 4
+  }
+}
