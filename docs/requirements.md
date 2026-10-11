@@ -26,4 +26,4 @@ This app needs to be able to search the site entered, get the top 5 search resul
 - Use the settings to indicate whether to store the search results or not. If yes, then store these in indexeddb and show it on click of search history
 - Allow removing a specific search result or all based on time range or typical datetime filter or specific search result
 - Add relevant analytics dashboard
-- The app should be a browser only app
+- The app should be a browser only app  

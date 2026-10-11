@@ -8,21 +8,32 @@
     "dev": "vite",
     "build": "vite build",
     "lint": "eslint .",
+    "test": "vitest",
+    "test:run": "vitest run",
+    "test:coverage": "vitest run --coverage",
     "preview": "vite preview",
+    "download-models": "node scripts/download-models.js",
     "kill": "lsof -ti:5289 | xargs kill -9 2>/dev/null || true",
     "restart": "npm run kill && npm run dev"
   },
   "dependencies": {
+    "@huggingface/transformers": "^4.3.1",
     "@mlc-ai/web-llm": "^0.2.83",
-    "dexie": "^4.4.2",
-    "dexie-react-hooks": "^4.4.0",
     "lucide-react": "^1.14.0",
+    "mammoth": "^1.13.0",
+    "marked": "^18.1.0",
+    "pdfjs-dist": "^6.4.299",
     "react": "^19.2.5",
     "react-dom": "^19.2.5",
-    "turndown": "^7.2.0"
+    "rxdb": "^16.21.1",
+    "turndown": "^7.2.0",
+    "xlsx": "^0.18.5"
   },
   "devDependencies": {
     "@eslint/js": "^10.0.1",
+    "@testing-library/jest-dom": "^7.0.1",
+    "@testing-library/react": "^16.3.3",
+    "@testing-library/user-event": "^14.6.7",
     "@types/react": "^19.2.14",
     "@types/react-dom": "^19.2.3",
     "@vitejs/plugin-react": "^6.0.1",
@@ -30,6 +41,8 @@
     "eslint-plugin-react-hooks": "^7.1.1",
     "eslint-plugin-react-refresh": "^0.5.2",
     "globals": "^17.5.0",
-    "vite": "^8.0.10"
+    "jsdom": "^30.1.2",
+    "vite": "^8.0.10",
+    "vitest": "^5.0.3"
   }
 }

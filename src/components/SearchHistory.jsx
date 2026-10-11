@@ -1,24 +1,48 @@
-import React, { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { Clock, Trash2, Search, Calendar } from 'lucide-react';
-import { useLiveQuery } from 'dexie-react-hooks';
-import { db } from '../db/database';
+import { getDatabase } from '../db/rxdb';
 
 export default function SearchHistory({ onSelectSearch, refreshKey }) {
   const [dateFilter, setDateFilter] = useState('all');
   const [showConfirmDelete, setShowConfirmDelete] = useState(null);
+  const [searches, setSearches] = useState([]);
+  const [isLoading, setIsLoading] = useState(true);
 
-  const searches = useLiveQuery(
-    () => db.searches.orderBy('timestamp').reverse().toArray(),
-    [refreshKey],
-    []
-  );
+  const loadSearches = useCallback(async () => {
+    setIsLoading(true);
+    try {
+      const db = await getDatabase();
+      const docs = await db.runs.find({
+        selector: { userId: 'default' },
+        sort: [{ startedAt: 'desc' }]
+      }).exec();
+      setSearches(docs);
+    } catch (err) {
+      console.error('Failed to load search history:', err);
+    } finally {
+      setIsLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    loadSearches();
+  }, [loadSearches, refreshKey]);
 
   const deleteSearch = async (id) => {
     try {
-      await db.results.where('searchId').equals(id).delete();
-      await db.summaries.where('searchId').equals(id).delete();
-      await db.searches.delete(id);
+      const db = await getDatabase();
+      const run = await db.runs.findOne({ selector: { id } }).exec();
+      if (run) await run.remove();
+
+      const files = await db.files.find({ selector: { runId: id } }).exec();
+      for (const file of files) await file.remove();
+
+      const outputs = await db.outputs.find({ selector: { runId: id } }).exec();
+      for (const output of outputs) await output.remove();
+
       setShowConfirmDelete(null);
+      loadSearches();
     } catch (err) {
       console.error('Failed to delete search:', err);
     }
@@ -26,10 +50,18 @@ export default function SearchHistory({ onSelectSearch, refreshKey }) {
 
   const deleteAllSearches = async () => {
     try {
-      await db.results.clear();
-      await db.summaries.clear();
-      await db.searches.clear();
+      const db = await getDatabase();
+      const runs = await db.runs.find({ selector: { userId: 'default' } }).exec();
+      for (const run of runs) await run.remove();
+
+      const files = await db.files.find({ selector: { userId: 'default' } }).exec();
+      for (const file of files) await file.remove();
+
+      const outputs = await db.outputs.find({ selector: { userId: 'default' } }).exec();
+      for (const output of outputs) await output.remove();
+
       setShowConfirmDelete(null);
+      loadSearches();
     } catch (err) {
       console.error('Failed to delete all searches:', err);
     }
@@ -37,14 +69,22 @@ export default function SearchHistory({ onSelectSearch, refreshKey }) {
 
   const filteredSearches = (searches || []).filter(s => {
     if (dateFilter === 'all') return true;
-    const now = Date.now();
-    const diff = now - s.timestamp;
+    const now = Date.now(); // eslint-disable-line react-hooks/purity
+    const diff = now - s.startedAt;
     const dayMs = 86400000;
     if (dateFilter === 'today') return diff < dayMs;
     if (dateFilter === 'week') return diff < dayMs * 7;
     if (dateFilter === 'month') return diff < dayMs * 30;
     return true;
   });
+
+  if (isLoading) {
+    return (
+      <div className="empty-state">
+        <p>Loading search history...</p>
+      </div>
+    );
+  }
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
@@ -58,7 +98,7 @@ export default function SearchHistory({ onSelectSearch, refreshKey }) {
             <Calendar size={14} color="var(--text-muted)" />
             <select
               className="select"
-              value={dateFilter}
+              value={dateFilter || 'all'}
               onChange={(e) => setDateFilter(e.target.value)}
               style={{ padding: '0.3rem 0.6rem', fontSize: '0.8rem' }}
             >
@@ -102,15 +142,20 @@ export default function SearchHistory({ onSelectSearch, refreshKey }) {
             <div key={search.id} className="history-item">
               <div
                 style={{ flex: 1, display: 'flex', alignItems: 'center', gap: '1rem', cursor: 'pointer' }}
-                onClick={() => onSelectSearch(search)}
+                onClick={() => onSelectSearch({
+                  id: search.id,
+                  query: search.query,
+                  engine: search.engine,
+                  resultCount: search.fileIds?.length || 0
+                })}
               >
                 <Search size={16} color="var(--primary-color)" />
                 <div style={{ flex: 1 }}>
                   <div style={{ fontWeight: '500', fontSize: '0.9rem' }}>{search.query}</div>
                   <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', display: 'flex', gap: '0.75rem', marginTop: '0.2rem' }}>
                     <span>{search.engine}</span>
-                    <span>{search.resultCount} results</span>
-                    <span>{new Date(search.timestamp).toLocaleString()}</span>
+                    <span>{search.fileIds?.length || 0} results</span>
+                    <span>{new Date(search.startedAt).toLocaleString()}</span>
                   </div>
                 </div>
               </div>

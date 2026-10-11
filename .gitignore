@@ -10,14 +10,29 @@ build
 .env.local
 .env.*.local
 
-# IDE
+# In-Browser AI Models & Heavy Weights (Downloaded via npm run download-models)
+public/models/*
+!public/models/.gitkeep
+!public/models/manifest.json
+*.onnx
+*.onnx_data
+*.litertlm
+*.safetensors
+*.bin
+*.bin_*
+*.tflite
+*.pt
+*.parquet
+*.wasm_data
+
+# IDE & Editors
 .vscode
 .idea
 *.swp
 *.swo
 *~
 
-# OS
+# OS artifacts
 .DS_Store
 Thumbs.db
 
@@ -28,3 +43,4 @@ npm-debug.log*
 # Cache
 .eslintcache
 .vite
+.cache

@@ -1,0 +1,21 @@
+{
+  "updatedAt": "2026-10-10T01:01:28.911Z",
+  "baseServedPath": "/models",
+  "models": {
+    "gemma4": {
+      "name": "Gemma 4 (In-Browser WebGPU & WebLLM)",
+      "servingPath": "/models/gemma4",
+      "filesReady": 7
+    },
+    "embeddinggemma2": {
+      "name": "EmbeddingGemma 2 (In-Browser Vector Embeddings)",
+      "servingPath": "/models/embeddinggemma2",
+      "filesReady": 5
+    },
+    "phi4": {
+      "name": "Phi-4 Mini (WebLLM - MLC)",
+      "servingPath": "/models/phi4",
+      "filesReady": 4
+    }
+  }
+}

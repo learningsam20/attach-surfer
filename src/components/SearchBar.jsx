@@ -1,11 +1,35 @@
-import React, { useState } from 'react';
-import { Search, Settings, Globe, Paperclip, Hash } from 'lucide-react';
+import { useState, useEffect } from 'react';
+import { Search, Globe, Paperclip, Hash } from 'lucide-react';
 
-export default function SearchBar({ onSearch, isSearching }) {
+export default function SearchBar({
+  onSearch,
+  isSearching,
+  defaultEngine = 'all',
+  defaultResultCount = 3,
+  defaultAttachmentFilter = 'with'
+}) {
   const [query, setQuery] = useState('');
-  const [engine, setEngine] = useState('all');
-  const [attachmentFilter, setAttachmentFilter] = useState('all');
-  const [resultCount, setResultCount] = useState(3);
+  const [engine, setEngine] = useState(defaultEngine);
+  const [attachmentFilter, setAttachmentFilter] = useState(defaultAttachmentFilter || 'with');
+  const [resultCount, setResultCount] = useState(defaultResultCount);
+
+  useEffect(() => {
+    if (defaultEngine) {
+      setEngine(defaultEngine);
+    }
+  }, [defaultEngine]);
+
+  useEffect(() => {
+    if (defaultResultCount) {
+      setResultCount(defaultResultCount);
+    }
+  }, [defaultResultCount]);
+
+  useEffect(() => {
+    if (defaultAttachmentFilter) {
+      setAttachmentFilter(defaultAttachmentFilter);
+    }
+  }, [defaultAttachmentFilter]);
 
   const handleSubmit = (e) => {
     e.preventDefault();
@@ -16,7 +40,7 @@ export default function SearchBar({ onSearch, isSearching }) {
   return (
     <div className="search-hero">
       <h2>Smart Web Search with Attachment Extraction</h2>
-      <p style={{ color: 'var(--text-muted)', marginBottom: '1.5rem', fontSize: '0.9rem' }}>
+      <p style={{ color: 'var(--text-muted)', marginBottom: '0.75rem', fontSize: '0.8rem' }}>
         Search the web, extract content from pages and attachments, and get AI-powered summaries.
       </p>
 
@@ -27,7 +51,7 @@ export default function SearchBar({ onSearch, isSearching }) {
             type="text"
             className="search-bar"
             placeholder="Enter your search query..."
-            value={query}
+            value={query || ''}
             onChange={(e) => setQuery(e.target.value)}
             autoFocus
           />
@@ -50,13 +74,14 @@ export default function SearchBar({ onSearch, isSearching }) {
             <label>Engine:</label>
             <select
               className="select"
-              value={engine}
+              value={engine || 'all'}
               onChange={(e) => setEngine(e.target.value)}
               style={{ padding: '0.3rem 0.6rem', fontSize: '0.8rem' }}
             >
-              <option value="all">All (Google + Bing)</option>
+              <option value="all">All (Google + Bing + BrightData)</option>
               <option value="google">Google</option>
               <option value="bing">Bing</option>
+              <option value="brightdata">Bright Data</option>
             </select>
           </div>
 
@@ -65,7 +90,7 @@ export default function SearchBar({ onSearch, isSearching }) {
             <label>Attachments:</label>
             <select
               className="select"
-              value={attachmentFilter}
+              value={attachmentFilter || 'all'}
               onChange={(e) => setAttachmentFilter(e.target.value)}
               style={{ padding: '0.3rem 0.6rem', fontSize: '0.8rem' }}
             >
@@ -80,7 +105,7 @@ export default function SearchBar({ onSearch, isSearching }) {
             <label>Results:</label>
             <select
               className="select"
-              value={resultCount}
+              value={resultCount ?? 3}
               onChange={(e) => setResultCount(Number(e.target.value))}
               style={{ padding: '0.3rem 0.6rem', fontSize: '0.8rem' }}
             >

@@ -1,179 +1,231 @@
 # AttachSurfer Architecture
 
-## Tech Stack
+AttachSurfer is a **privacy-first, client-side web search engine with multi-format attachment extraction and in-browser AI summarization**. All data storage, vector embeddings, content extraction, and LLM inference execute directly inside the user's browser via WebGPU, WebAssembly, and IndexedDB.
 
-| Layer | Technology | Purpose |
-|-------|-----------|---------|
-| **UI Framework** | React 19 + Vite 8 | Component-based UI with fast HMR |
-| **Styling** | CSS Custom Properties | Dark/light theming, responsive design |
-| **Icons** | Lucide React | Consistent icon set |
-| **Search APIs** | Bing Search API / Google Custom Search API | Official search API calls |
-| **AI Inference** | WebLLM (Phi-4-mini) | Browser-based LLM for summarization |
-| **Local Storage** | Dexie.js (IndexedDB) | Search history, results, telemetry |
-| **HTML→Markdown** | Turndown | Convert extracted HTML to markdown |
-| **Language** | JavaScript (JSX) | No TypeScript overhead |
+---
 
-## System Architecture
+## 1. Technology Stack
+
+| Layer | Technology | Version | Purpose |
+|-------|------------|---------|---------|
+| **UI Framework** | React + Vite | 19.2 / 8.0 | Component hierarchy, fast HMR, optimized bundle |
+| **Styling** | Vanilla CSS + CSS Variables | Modern CSS | Dark/Light themes, glassmorphism, responsive grid |
+| **Local Database** | RxDB | 16.21 | Reactive offline storage for searches, results, attachments, and telemetry |
+| **Icons** | Lucide React | 1.14 | Modern, accessible SVG icon library |
+| **Search APIs** | Bright Data, Bing, Google | Official APIs | Multi-engine search with attachment targeting |
+| **HTML → Markdown** | Turndown | 7.2 | Strips boilerplate and extracts clean Markdown |
+| **Document Parsers** | PDF.js, Mammoth, XLSX | 6.4 / 1.13 / 0.18 | Extracts text & tables from PDF, Word (.docx), Excel (.xlsx) |
+| **AI LLM Inference** | Gemma 4 & Phi-4 | LiteRT-LM / WebLLM | In-browser causal language modeling for summarization |
+| **Embeddings & Search** | EmbeddingGemma-2 | Transformers.js / ONNX | 768-dimensional in-browser vector search & semantic ranking |
+
+---
+
+## 2. System Architecture
 
 ```mermaid
 graph TB
-    subgraph "Browser (Client-Side Only)"
-        UI["React UI<br/>SearchBar · ResultCard · SummaryPanel · Settings · History"]
-
-        subgraph "Services Layer"
-            SS["Search Service<br/>Bing API + Google API (direct)"]
-            ES["Extract Service<br/>HTML → Markdown (Turndown)"]
-            SM["Summary Service<br/>WebLLM (Phi-4-mini)"]
-            TL["Telemetry Service<br/>Local event tracking"]
+    subgraph Browser ["Browser Client Environment (100% Client-Side)"]
+        subgraph UI ["Presentation Layer (React 19)"]
+            SB["SearchBar<br/>(Query, Engine, Filter, Count)"]
+            RC["ResultCard & MarkdownViewer<br/>(Preview, Formatted/Raw tabs)"]
+            SP["SummaryPanel<br/>(Collapsible AI Summary)"]
+            SW["SearchWithinResults<br/>(Semantic & Vector Search)"]
+            AD["AnalyticsDashboard<br/>(Latency & Telemetry Metrics)"]
+            SH["SearchHistory<br/>(RxDB Run History)"]
+            SV["SettingsView<br/>(Engines, Models, Offline Storage)"]
         end
 
-        subgraph "Data Layer"
-            DB["Dexie.js / IndexedDB<br/>searches · results · attachments · summaries · telemetry"]
+        subgraph Services ["Core Services Layer"]
+            SS["searchService<br/>Multi-engine query & deduplication"]
+            ES["extractService & attachmentExtractor<br/>PDF, Word, Excel, HTML pipeline"]
+            SMS["summaryService<br/>Context window chunking & LLM prompt"]
+            EMB["embeddingService<br/>EmbeddingGemma-2 768-dim Vectors"]
+            TL["telemetryService<br/>Latency & operational metrics"]
         end
 
-        subgraph "AI Engine"
-            WLLM["WebLLM MLCEngine<br/>Singleton · Phi-4-mini-instruct-q4f16_1-MLC"]
+        subgraph AI ["In-Browser AI Execution Engines"]
+            direction LR
+            G4["Gemma 4<br/>(LiteRT-LM / Transformers.js ONNX)"]
+            P4["Phi-4-mini<br/>(WebLLM / WebGPU MLC)"]
+            EG2["EmbeddingGemma-2<br/>(Transformers.js / WebGPU)"]
         end
 
-        subgraph "External APIs"
-            B["Bing Search API<br/>api.bing.microsoft.com"]
-            G["Google Custom Search API<br/>googleapis.com"]
-            WEB["Web Pages<br/>(content extraction)"]
+        subgraph Storage ["Persistent Client Storage"]
+            RX["RxDB (IndexedDB)<br/>Runs · Files · Outputs · Telemetry · Embeddings"]
         end
     end
 
-    UI --> SS
-    UI --> ES
-    UI --> SM
-    UI --> TL
-    SS -->|API key| B
-    SS -->|API key + CX| G
-    ES --> WEB
-    SM --> WLLM
-    TL --> DB
-    UI <--> DB
+    subgraph External ["External Search Providers & Web Pages"]
+        BD["Bright Data SERP API"]
+        BING["Bing Web Search API v7"]
+        GOOGLE["Google Custom Search API"]
+        PAGES["Target Web Pages & Attachment URLs"]
+    end
+
+    SB --> SS
+    SS -->|SERP Query| BD
+    SS -->|API Key| BING
+    SS -->|Key + CX| GOOGLE
+    SS --> RX
+
+    RC --> ES
+    ES -->|Fetch CORS/Proxy| PAGES
+    ES --> RX
+
+    SP --> SMS
+    SMS --> G4
+    SMS --> P4
+    SMS --> RX
+
+    SW --> EMB
+    EMB --> EG2
+    EMB --> RX
+
+    AD --> TL
+    TL --> RX
 ```
 
-## Data Flow
+---
+
+## 3. End-to-End Query & Extraction Flow
 
 ```mermaid
 sequenceDiagram
+    autonumber
     actor User
-    participant UI as React UI
-    participant SS as Search Service
-    participant API as Bing / Google API
-    participant ES as Extract Service
-    participant SM as Summary Service
-    participant WLLM as WebLLM Engine
-    participant DB as IndexedDB
+    participant UI as SearchBar / React UI
+    participant SearchSvc as searchService
+    participant Engine as Search Engines (Bright Data / Bing / Google)
+    participant ExtractSvc as extractService / attachmentExtractor
+    participant AISvc as summaryService & aiEngine
+    participant DB as RxDB (IndexedDB)
 
-    User->>UI: Enter query + options
-    UI->>UI: Validate API keys
-    UI->>SS: search(query, engine, count)
+    User->>UI: Enter query + select engine & attachment filter
+    UI->>SearchSvc: search(query, engine, filter, count)
+    SearchSvc->>Engine: Dispatches API request
+    Engine-->>SearchSvc: Raw SERP response
+    SearchSvc->>SearchSvc: Filter by attachment format (.pdf, .docx, .xlsx, .pptx) & deduplicate
+    SearchSvc->>DB: createRun() & store initial search state
+    SearchSvc-->>UI: Return parsed, filtered results
 
-    par Bing Search
-        SS->>API: GET /v7.0/search (Ocp-Apim-Subscription-Key)
-        API-->>SS: JSON results
-    and Google Search
-        SS->>API: GET /customsearch/v1 (key + cx)
-        API-->>SS: JSON results
+    par Document Content Extraction
+        UI->>ExtractSvc: extractPageContent(result.url)
+        ExtractSvc->>ExtractSvc: Inspect MIME type / extension (PDF, DOCX, XLSX, HTML)
+        ExtractSvc-->>UI: Extracted Markdown + Metadata + Image references
+        ExtractSvc->>DB: addFile() cache extracted document
     end
 
-    SS-->>UI: ParsedResult[]
-    UI->>DB: Save search + results
-
-    loop For each result
-        UI->>ES: extractPageContent(url)
-        ES->>WEB: fetch(url)
-        WEB-->>ES: HTML content
-        ES-->>UI: {markdown, type, title}
-        UI->>DB: Save content
+    opt User Requests AI Summary
+        User->>UI: Click "Generate Summary"
+        UI->>AISvc: generateSummary(query, results, extractedContents)
+        AISvc->>AISvc: Truncate & format context window (token limit aware)
+        AISvc->>AISvc: Run local inference (Gemma-4 / Phi-4 via WebGPU)
+        AISvc-->>UI: Stream/render structured Markdown summary
+        AISvc->>DB: addOutput() store summary in RxDB
     end
-
-    User->>UI: Click "Generate Summary"
-    UI->>SM: generateSummary(results, contents)
-    SM->>WLLM: chat.completions.create(prompt)
-    WLLM-->>SM: AI summary text
-    SM-->>UI: Formatted markdown summary
-    UI->>DB: Save summary
-    UI-->>User: Display summary
 ```
 
-## Component Architecture
+---
 
-```mermaid
-graph LR
-    A["App.jsx<br/>Root · State · Routing"] --> B["SearchBar<br/>Query · Engine · Filter · Count"]
-    A --> C["ResultCard<br/>Rank · Title · URL · Snippet · Content"]
-    A --> D["SummaryPanel<br/>AI-generated summary display"]
-    A --> E["SettingsView<br/>Config · API keys · Model"]
-    A --> F["SearchHistory<br/>Past searches · Date filter · Delete"]
-    A --> G["HardwareWarning<br/>RAM/CPU capability check"]
+## 4. RxDB Database Schema
 
-    A --> H["SearchService<br/>Bing + Google API calls"]
-    A --> I["ExtractService<br/>HTML→Markdown (Turndown)"]
-    A --> J["SummaryService<br/>WebLLM summarization"]
-    A --> K["TelemetryService<br/>Event tracking"]
-```
-
-## IndexedDB Schema
+RxDB stores all run sessions and documents locally inside the browser's IndexedDB:
 
 ```mermaid
 erDiagram
-    SEARCHES ||--o{ RESULTS : contains
-    SEARCHES ||--o{ ATTACHMENTS : references
-    SEARCHES ||--o| SUMMARIES : has
-    SEARCHES {
-        int id PK
-        string query
-        string engine
-        int resultCount
-        string attachmentFilter
-        timestamp timestamp
+    RUNS ||--o{ FILES : contains
+    RUNS ||--o{ OUTPUTS : produces
+    RUNS ||--o{ TELEMETRY : logs
+
+    RUNS {
+        string id PK "UUID / Run Identifier"
+        string query "Search query string"
+        string engine "brightdata | bing | google | all"
+        string attachmentFilter "with | without | all"
+        int resultCount "Requested result count"
+        int timestamp "Epoch milliseconds"
     }
-    RESULTS {
-        int id PK
-        int searchId FK
-        int rank
-        string title
-        string url
-        string snippet
-        string engine
-        timestamp timestamp
+
+    FILES {
+        string id PK "Unique file ID"
+        string runId FK "Associated Run ID"
+        string url "Source URL"
+        string fileType "pdf | docx | xlsx | html"
+        string markdown "Extracted markdown text"
+        json metadata "Page title, author, sheet names"
+        int timestamp "Epoch milliseconds"
     }
-    ATTACHMENTS {
-        int id PK
-        int resultId FK
-        int searchId FK
-        string filename
-        string type
-        string content
-        timestamp timestamp
+
+    OUTPUTS {
+        string id PK "Unique output ID"
+        string runId FK "Associated Run ID"
+        string modelUsed "gemma4 | phi4"
+        string summaryText "AI-generated summary"
+        int durationMs "LLM inference latency"
+        int timestamp "Epoch milliseconds"
     }
-    SUMMARIES {
-        int id PK
-        int searchId FK
-        string content
-        timestamp timestamp
-    }
+
     TELEMETRY {
-        int id PK
-        string event
-        json data
-        timestamp timestamp
+        string id PK "Event ID"
+        string event "search | extraction | llm_summary"
+        json metrics "searchTimeMs, extractTimeMs, llmTimeMs"
+        int timestamp "Epoch milliseconds"
     }
 ```
 
-## Privacy Model
+---
 
-All processing is client-side only:
+## 5. Attachment Extraction Engine
 
-| Operation | Location | Data Sent Externally |
-|-----------|----------|---------------------|
-| Search queries | Browser → Bing/Google API | Query text via official API |
-| Content extraction | Browser → Target URL | URL only |
-| AI summarization | Browser (WebLLM) | Nothing |
-| Data storage | Browser (IndexedDB) | Nothing |
-| Telemetry | Browser (IndexedDB) | Nothing |
+The application includes dedicated parsers for each attachment format:
 
-No server, no analytics services, no third-party proxies.
+1. **PDF Documents (`pdfjs-dist`)**:
+   - Parses document pages via PDF.js worker.
+   - Extracts formatted text blocks and structural headers.
+   - Preserves page numbers and metadata (author, creation date).
+
+2. **Word Documents (`mammoth`)**:
+   - Parses OpenXML `.docx` files directly into clean HTML.
+   - Converts headings, lists, tables, and inline emphasis.
+   - Transforms into standardized Markdown.
+
+3. **Excel Spreadsheets (`xlsx`)**:
+   - Parses multi-sheet workbooks.
+   - Converts sheets into clean Markdown tables for easy reading and AI ingestion.
+
+4. **Web HTML (`turndown`)**:
+   - Strips ads, navigation bars, cookie banners, and boilerplate.
+   - Preserves document hierarchy, code blocks, lists, and images.
+
+---
+
+## 6. In-Browser AI Models & Offline Architecture
+
+```
+public/models/
+├── gemma4/                 # Gemma 4 (LiteRT-LM & Transformers.js ONNX)
+│   ├── config.json
+│   ├── tokenizer.json
+│   └── gemma-4-E2B-it-web.litertlm
+├── phi4/                   # Phi-4 Mini (WebLLM MLC / WebGPU)
+│   ├── mlc-chat-config.json
+│   ├── tokenizer.json
+│   └── ndarray-cache.json
+└── embeddinggemma2/        # EmbeddingGemma-2 (Transformers.js ONNX)
+    ├── config.json
+    ├── tokenizer.json
+    └── onnx/model_quantized.onnx
+```
+
+- **Local First**: If models exist in `public/models`, they are served with optimal caching headers directly to the browser.
+- **Graceful Fallbacks**:
+  - If local weights are unavailable, the application can load from verified remote CDNs/Hugging Face or use deterministic high-dimensional embeddings.
+  - Hardware checks automatically monitor WebGPU capability, RAM, and cores to protect low-spec machines.
+
+---
+
+## 7. Privacy & Security Model
+
+- **Zero Server Architecture**: There is no backend application server. The Vite build compiles to static assets.
+- **Direct API Authentication**: Search API keys are stored solely in the user's browser `localStorage` or `.env` and sent exclusively to the configured search provider.
+- **Local AI Inference**: Model weights are downloaded and executed on the client GPU/CPU. Prompts, documents, and generated summaries never leave the user's device.
